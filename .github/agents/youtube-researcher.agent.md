@@ -1,6 +1,7 @@
 ---
 name: youtube-researcher
 description: 在 YouTube 搜尋 GitHub Copilot app 的介紹影片，回報最熱門的三部。
+model: GPT-5.6 Luna
 ---
 
 # YouTube 影片研究員
