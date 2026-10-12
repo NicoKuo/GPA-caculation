@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>文章瀏覽器</title>
+<style>
+  body { font-family: "Microsoft JhengHei", sans-serif; margin: 0; background: #f5f6f8; color: #222; }
+  header { background: #24292f; color: #fff; padding: 16px 24px; }
+  header h1 { margin: 0; font-size: 20px; }
+  main { max-width: 900px; margin: 0 auto; padding: 16px; }
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  #txtSearch { flex: 1; min-width: 200px; padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+  #cboTag { padding: 8px; border: 1px solid #ccc; border-radius: 6px; }
+  #fileLoad { display: none; margin-bottom: 12px; padding: 12px; background: #fff3cd; border-radius: 6px; }
+  .card { background: #fff; border-radius: 8px; padding: 14px 16px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .card h2 { margin: 0 0 6px; font-size: 17px; }
+  .card a { color: #0969da; text-decoration: none; }
+  .meta { color: #666; font-size: 13px; margin-bottom: 8px; }
+  .tag { display: inline-block; background: #ddf4ff; color: #0550ae; border-radius: 12px; padding: 2px 10px; font-size: 12px; margin-right: 4px; cursor: pointer; }
+  #lblCount { color: #666; font-size: 13px; margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<header><h1>📚 文章瀏覽器（articles.json）</h1></header>
+<main>
+  <div class="toolbar">
+    <input id="txtSearch" type="search" placeholder="搜尋標題、作者、標籤…">
+    <select id="cboTag"><option value="">全部標籤</option></select>
+  </div>
+
+  <!-- 直接開啟 html 檔時，瀏覽器可能不允許自動讀取 JSON，這時會顯示這個選檔區 -->
+  <div id="fileLoad">
+    無法自動讀取 articles.json，請手動選擇檔案：
+    <input id="fileJson" type="file" accept=".json,application/json">
+  </div>
+
+  <div id="lblCount"></div>
+  <div id="lstArticles"></div>
+</main>
+
+<script>
+// ===== 變更紀錄 =====
+// v1.0 2026-10-12 初版：搜尋、標籤篩選、手動選檔備援
+
+// 所有文章資料（從 JSON 讀進來）
+let allArticles = [];
+
+// 取得畫面上的控制項
+const txtSearch   = document.getElementById("txtSearch");
+const cboTag      = document.getElementById("cboTag");
+const fileLoad    = document.getElementById("fileLoad");
+const fileJson    = document.getElementById("fileJson");
+const lblCount    = document.getElementById("lblCount");
+const lstArticles = document.getElementById("lstArticles");
+
+// 把文字中的特殊符號轉成安全文字，避免 JSON 內容被當成 HTML 執行
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// 資料載入完成後：建立標籤下拉選單並顯示
+function setData(data) {
+  allArticles = Array.isArray(data) ? data : [];
+  // 收集所有不重複的標籤
+  const tags = [...new Set(allArticles.flatMap(a => a.tags || []))].sort();
+  cboTag.innerHTML = '<option value="">全部標籤</option>' +
+    tags.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
+  render();
+}
+
+// 依搜尋字與標籤篩選後，畫出文章卡片
+function render() {
+  const kw  = txtSearch.value.trim().toLowerCase();
+  const tag = cboTag.value;
+
+  const list = allArticles.filter(a => {
+    const text = [a.title, a.author, ...(a.tags || [])].join(" ").toLowerCase();
+    return (!kw || text.includes(kw)) && (!tag || (a.tags || []).includes(tag));
+  });
+
+  lblCount.textContent = `共 ${list.length} 篇（總計 ${allArticles.length} 篇）`;
+  lstArticles.innerHTML = list.map(a => `
+    <div class="card">
+      <h2><a href="${esc(a.url)}" target="_blank" rel="noopener">${esc(a.title)}</a></h2>
+      <div class="meta">${esc(a.author || "未知作者")} ・ ${esc(a.published || "日期不明")}</div>
+      <div>${(a.tags || []).map(t => `<span class="tag" data-tag="${esc(t)}">${esc(t)}</span>`).join("")}</div>
+    </div>`).join("");
+}
+
+// 點擊卡片上的標籤 → 用該標籤篩選
+lstArticles.addEventListener("click", e => {
+  if (e.target.dataset.tag) { cboTag.value = e.target.dataset.tag; render(); }
+});
+txtSearch.addEventListener("input", render);
+cboTag.addEventListener("change", render);
+
+// 手動選檔備援
+fileJson.addEventListener("change", () => {
+  const f = fileJson.files[0];
+  if (!f) return;
+  f.text().then(t => { setData(JSON.parse(t)); fileLoad.style.display = "none"; });
+});
+
+// 啟動時先嘗試自動讀取同資料夾的 articles.json
+fetch("articles.json")
+  .then(r => r.json())
+  .then(setData)
+  .catch(() => { fileLoad.style.display = "block"; });
+</script>
+</body>
+</html>
